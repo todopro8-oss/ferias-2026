@@ -26,8 +26,8 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/render/**', '**/audio/**', '**/scenes/**', '**/core/**'],
-              message: '/mus y /ai deben ser puros.',
+              group: ['**/render/**', '**/audio/**', '**/scenes/**', '**/core/**', '!**/core/rng'],
+              message: '/mus y /ai deben ser puros (sólo pueden usar core/rng).',
             },
           ],
         },
