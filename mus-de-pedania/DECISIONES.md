@@ -164,3 +164,22 @@ Cada entrada: qué se decidió y por qué.
   atenúa mientras alguien habla.
 - **Sin clics ni saturación.** Envolventes con rampas, compresor en el master y `scripts/audio-check.ts`,
   que renderiza todo en Chromium y mide pico y saltos entre muestras.
+
+## Pulido (H8)
+
+- **Cameos.** Cada 3-6 manos (nunca en la mano guiada) se abre la puerta del fondo y entra alguien:
+  el cartero, la vecina, el turista, un chaval o el perro. Dice su línea en un bocadillo y se va, sin
+  parar la partida. Al turista le contesta alguien de la mesa con un «¡Envido!», y él se despide. El
+  perro cruza por detrás de la mesa y ladra.
+- **Nicanor.** Además de sus bucles (secar vasos, tirar una caña, sacar tortilla, fregar, subir la
+  tele), comenta de vez en cuando al empezar la mano y a veces grita «¡Adentro, que se enfría la
+  tortilla!» cuando una pareja entra en los 35.
+- **Huevos de pascua.** Al ganar una partida, el bar aplaude, cae confeti y Nicanor saca una bandeja
+  con la ronda que invita la casa. Al ganar el torneo suena la charanga, desfilan los músicos y te
+  dan un jamón y una placa con tu nombre.
+- **Ciclo de paleta.** Rótulo de neón, logo, el tubo fluorescente que parpadea muy de vez en cuando y
+  el vestido de lentejuelas de Marisa, que destella en la mesa.
+- **Destape tras un deje final.** Si un deje hace llegar a los puntos, se enseñan igualmente las
+  cartas de todos, por curiosidad (la spec no lo pide, pero el jugador lo quiere ver).
+- **Prueba de resistencia.** `scripts/estres.ts`: 200 manos IA contra IA en la escena, a ×10, con
+  señas discretas y chivato, midiendo los fotogramas con `requestAnimationFrame`.

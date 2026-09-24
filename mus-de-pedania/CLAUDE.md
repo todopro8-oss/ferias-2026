@@ -74,6 +74,9 @@ npm run voices:manifest                 # regenera assets/voices/manifest.json
 
 Al cerrar cada hito: tests en verde, `npm run build` correcto, lint limpio, commit descriptivo.
 
+Estado: H0-H8 hechos. Pruebas en navegador con Playwright en `scripts/` (jugar-humano, torneo-e2e,
+estres, audio-check, captura). Chromium en `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
 ## Convenciones
 
 - Identificadores y textos en español; nombres del dominio del mus tal cual (`envido`, `ordago`, `postre`…).

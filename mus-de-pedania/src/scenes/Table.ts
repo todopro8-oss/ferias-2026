@@ -16,7 +16,8 @@ import { derivarSemilla, mulberry32, type Rng } from '../core/rng';
 import type { Escena } from '../core/sceneManager';
 import { Animador, suave } from '../core/tween';
 import { PERSONAJES, type IdPersonaje } from '../data/characters';
-import { LINEAS, LINEAS_NICANOR, type EventoVoz } from '../data/lines.es';
+import { CAMEOS, DESPEDIDA_CAMEO, LINEAS, LINEAS_NICANOR, RESPUESTAS_CAMEO, type EventoVoz } from '../data/lines.es';
+import { CameoEnCurso } from '../render/cameos';
 import { narrar, NOMBRE_EQUIPO } from '../data/narrador.es';
 import { DERIVADOS as D, PALETA as P } from '../data/palette';
 import { SelectorLineas } from '../data/selectorLineas';
@@ -130,7 +131,11 @@ export class Mesa implements Escena {
   private destape: Carta[][] | null = null;
   private volteo = 1;
   private cantidad = 2;
-  private bocadillos: Partial<Record<Seat | 4, Bocadillo>> = {};
+  private bocadillos: Partial<Record<Seat | 4 | 5, Bocadillo>> = {};
+  /** Alguien que entra por la puerta del fondo (cada 3-6 manos). */
+  private cameo: CameoEnCurso | null = null;
+  private manosHastaCameo = 3;
+  private hablaCameo = 2600;
   private banner: { texto: string; color: string; restante: number } | null = null;
   private historial: string[] = [];
   verHistorial = false;
@@ -238,6 +243,11 @@ export class Mesa implements Escena {
     this.montones = [this.partida.marcador[0], this.partida.marcador[1]];
     this.estado = 'eventos';
     this.cola.push(...this.mano.sacarEventos());
+    // Cada 3-6 manos entra alguien por la puerta.
+    if (!this.op.tutorial && --this.manosHastaCameo <= 0 && !this.cameo) {
+      this.manosHastaCameo = 3 + Math.floor(this.rng() * 4);
+      this.cameo = new CameoEnCurso(CAMEOS[Math.floor(this.rng() * CAMEOS.length)].id);
+    }
     // Nicanor comenta de vez en cuando al empezar la mano.
     if (this.partida.numeroMano > 0 && this.rng() < 0.18) {
       const l = this.lineas.elegirConIndice('nicanor', LINEAS_NICANOR);
@@ -273,6 +283,7 @@ export class Mesa implements Escena {
     }
     for (const e of [0, 1] as const) if (this.resaltarMarcador[e] > 0) this.resaltarMarcador[e] -= dt;
     this.actualizarSenas(dt);
+    this.actualizarCameo(dt);
 
     if (this.estado === 'continuar' || this.estado === 'fin') {
       if (this.iaHumano && this.estado === 'continuar' && !this.anim.ocupado) this.continuar();
@@ -388,7 +399,6 @@ export class Mesa implements Escena {
         break;
       case 'lance_fin':
         this.estadoLances[e.lance] = this.textoResultado(e.resultado);
-        if (e.lance === 'pares' || e.lance === 'juego') this.lanceActual = null;
         this.lanceActual = null;
         this.espera = 350 * r;
         break;
@@ -433,11 +443,24 @@ export class Mesa implements Escena {
         const [a, b] = miembros(e.equipo);
         const quien = a === 0 ? 2 : this.rng() < 0.5 ? a : b;
         this.decir(quien, 'adentro');
+        if (this.rng() < 0.4) {
+          const t = LINEAS_NICANOR[2];
+          this.anim.agregar({
+            dur: 0,
+            retardo: 900 * this.ritmo,
+            alTerminar: () => {
+              this.bocadillos[4] = crearBocadillo(t, { x: 222, y: 24, lado: 'derecha' }, 2200 * this.ritmo);
+              this.juego.audio.voz('nicanor', 'idle', t, 2);
+            },
+          });
+        }
         this.espera = 900 * r;
         break;
       }
       case 'fin_juego': {
         this.finJuegoPendiente = true;
+        // Si el juego se acaba con un deje, se enseñan las cartas igualmente (para la curiosidad).
+        if (!this.destape && this.mano) this.destapar(this.mano.manos);
         this.marcadorVisible = [e.marcador[0], e.marcador[1]];
         const nos = e.fin.ganador === 0;
         this.mostrarBanner(nos ? UI.finJuego.ganamos : UI.finJuego.perdemos, nos ? P.oros : D.copas_brillo, 2600);
@@ -448,6 +471,17 @@ export class Mesa implements Escena {
         break;
       }
       case 'fin_mano':
+        // Quien se ha llevado la mano lo comenta (según el parloteo).
+        if (this.mano && !this.mano.finJuego) {
+          const ganado: [number, number] = [
+            e.marcador[0] - this.mano.marcadorInicial[0],
+            e.marcador[1] - this.mano.marcadorInicial[1],
+          ];
+          if (Math.abs(ganado[0] - ganado[1]) >= 3 && this.rng() < this.probabilidadCharla() * 0.6) {
+            const gana: Equipo = ganado[0] > ganado[1] ? 0 : 1;
+            this.decirReaccion(gana, this.rng() < 0.5 ? 'ganaLance' : 'pierdeLance');
+          }
+        }
         this.marcadorVisible = [e.marcador[0], e.marcador[1]];
         this.resumen.mensajeFinal = UI.recuento.seguir;
         this.resumen.visible = true;
@@ -517,6 +551,10 @@ export class Mesa implements Escena {
       this.temblor = 300;
       this.juego.audio.sfx('golpe');
       if (s !== 0) this.bustos[s as 1 | 2 | 3].sacudida = 300;
+      // Los contrarios se quedan de piedra.
+      for (const o of [1, 2, 3] as const) {
+        if (equipoDe(o) !== equipoDe(s)) this.bustos[o].mostrar('sorprendido', 900 * this.ritmo);
+      }
     }
     // Las declaraciones son cortas y siempre iguales; el resto, con el sabor de cada uno.
     const conSabor = !declaracion && (s === 0 || this.rng() < this.probabilidadCharla() || voz === 'ordago');
@@ -710,6 +748,60 @@ export class Mesa implements Escena {
       dur: 600 * this.ritmo,
       alActualizar: (p) => (this.volteo = p),
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cameos y Nicanor
+  // ---------------------------------------------------------------------------
+
+  /** Para pruebas: que entre alguien ya. */
+  forzarCameo(id: CameoEnCurso['id']): void {
+    this.cameo = new CameoEnCurso(id);
+  }
+
+  private actualizarCameo(dt: number): void {
+    const c = this.cameo;
+    if (!c) return;
+    if (c.actualizar(dt, this.hablaCameo)) {
+      const def = CAMEOS.find((k) => k.id === c.id)!;
+      const l = this.lineas.elegirConIndice(`cameo-${c.id}`, def.lineas);
+      const ancla = c.ancla;
+      this.hablaCameo = 2600 * this.ritmo;
+      this.bocadillos[5] = crearBocadillo(l.texto, { x: ancla.x, y: ancla.y, lado: 'izquierda' }, this.hablaCameo, {
+        maxLineas: 3,
+      });
+      this.juego.audio.voz(c.id, 'cameo', l.texto, l.indice);
+      if (c.id === 'perro') this.juego.audio.sfx('ladrido');
+      // El turista pregunta por la ermita… y alguien grita «¡Envido!».
+      const respuestas = RESPUESTAS_CAMEO[c.id];
+      if (respuestas) {
+        this.hablaCameo = 4200 * this.ritmo;
+        const quien = ([1, 2, 3] as const)[Math.floor(this.rng() * 3)];
+        const grito = respuestas[Math.floor(this.rng() * respuestas.length)];
+        this.anim.agregar({
+          dur: 0,
+          retardo: 1300 * this.ritmo,
+          alTerminar: () => {
+            this.bocadillos[quien] = crearBocadillo(grito, LAYOUT.bocadillos[quien], 1500 * this.ritmo);
+            this.bustos[quien].hablar(500);
+            this.juego.audio.voz(this.ids[quien], 'grito', grito);
+          },
+        });
+        const despedida = DESPEDIDA_CAMEO[c.id];
+        if (despedida) {
+          this.anim.agregar({
+            dur: 0,
+            retardo: 2600 * this.ritmo,
+            alTerminar: () => {
+              const t = despedida[Math.floor(this.rng() * despedida.length)];
+              this.bocadillos[5] = crearBocadillo(t, { x: ancla.x, y: ancla.y, lado: 'izquierda' }, 1600 * this.ritmo);
+              this.juego.audio.voz(c.id, 'cameo', t);
+            },
+          });
+        }
+      }
+    }
+    if (c.terminado) this.cameo = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -1066,6 +1158,7 @@ export class Mesa implements Escena {
     dibujarTele(ctx, t);
     dibujarReloj(ctx);
     this.camarero.dibujar(ctx);
+    this.cameo?.dibujar(ctx);
     dibujarPizarra(ctx, this.marcadorVisible, this.partida.juegos, juegosParaGanar(this.config), this.resaltarMarcador);
     // Compañero (norte), por detrás de la mesa
     const bn = LAYOUT.bustos[2];
@@ -1077,6 +1170,7 @@ export class Mesa implements Escena {
     const be = LAYOUT.bustos[1];
     this.bustos[3].dibujar(ctx, bo.x, bo.y);
     this.bustos[1].dibujar(ctx, be.x, be.y);
+    this.destellosLentejuelas(ctx);
     this.dibujarCentroMesa(ctx);
     this.dibujarDorsosYDestape(ctx);
     dibujarMonton(ctx, LAYOUT.piedras[0], this.montones[0]);
@@ -1087,7 +1181,7 @@ export class Mesa implements Escena {
     this.dibujarPanelLances(ctx);
     this.dibujarPanelAcciones(ctx);
     this.resumen.dibujar(ctx);
-    for (const s of [3, 1, 2, 0, 4] as const) {
+    for (const s of [3, 1, 2, 0, 4, 5] as const) {
       const b = this.bocadillos[s];
       if (b) dibujarBocadillo(ctx, b);
     }
@@ -1103,6 +1197,23 @@ export class Mesa implements Escena {
     if (this.verAyuda) this.dibujarAyuda(ctx);
     if (this.verHistorial || this.juego.opciones.historialVisible) this.dibujarHistorial(ctx, this.verHistorial);
     ctx.restore();
+  }
+
+  /** Ciclo de paleta en el vestido de lentejuelas de Marisa: destellos que van cambiando. */
+  private destellosLentejuelas(ctx: CanvasRenderingContext2D): void {
+    const ciclo = [P.fluorescente, P.neon, D.blanco, D.oros_brillo];
+    for (const s of [1, 2, 3] as const) {
+      if (this.ids[s] !== 'marisa') continue;
+      const r = LAYOUT.bustos[s];
+      const fase = Math.floor(this.juego.tiempo / 120);
+      for (let k = 0; k < 5; k++) {
+        const x = r.x + 18 + ((k * 13 + fase * 7) % 26);
+        const y = r.y + r.h - 16 + ((k * 5 + fase * 3) % 12);
+        if (s === 2 && y >= MESA_Y) continue;
+        ctx.fillStyle = ciclo[(fase + k) % ciclo.length];
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
   }
 
   private dibujarCentroMesa(ctx: CanvasRenderingContext2D): void {

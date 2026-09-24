@@ -145,6 +145,22 @@ export class MatchEnd implements Escena {
     this.grupo.entrada(e);
   }
 
+  /** Huevo de pascua: Nicanor saca una bandeja con la ronda que invita la casa. */
+  private dibujarRonda(ctx: CanvasRenderingContext2D): void {
+    const entra = Math.min(1, this.t / 1500);
+    const x = Math.round(330 - entra * 90);
+    const y = 136;
+    caja(ctx, x - 2, y + 10, 48, 3, P.negro);
+    caja(ctx, x - 1, y + 10, 46, 2, D.gris_claro);
+    for (let k = 0; k < 4; k++) {
+      const bx = x + 2 + k * 11;
+      caja(ctx, bx, y, 7, 10, P.negro);
+      caja(ctx, bx + 1, y + 2, 5, 8, P.oros);
+      caja(ctx, bx + 1, y, 5, 3, D.blanco);
+      caja(ctx, bx + 1, y + 4, 1, 5, D.oros_brillo);
+    }
+  }
+
   dibujar(ctx: CanvasRenderingContext2D): void {
     ctx.drawImage(fondoBar(), 0, 0);
     this.camarero.dibujar(ctx);
@@ -181,6 +197,7 @@ export class MatchEnd implements Escena {
     st.forEach((l, i) => texto(ctx, l, 12, 152 + i * 9, P.tiza, { variante: 'tiza' }));
     // Piedras del montón ganador, de adorno
     for (let k = 0; k < 8; k++) dibujarPiedra(ctx, 280 + (k % 4) * 5, 160 + Math.floor(k / 4) * 4, k);
+    if (this.ganamos) this.dibujarRonda(ctx);
     if (this.fraseNicanor && this.t < 5000) {
       caja(ctx, 180, 90, 132, 20, P.negro);
       caja(ctx, 181, 91, 130, 18, P.papel);

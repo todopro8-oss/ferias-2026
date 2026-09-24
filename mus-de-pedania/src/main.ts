@@ -59,7 +59,14 @@ if (params.has('demo')) flujo.demo = true;
 if (params.has('velocidad')) juego.opciones.velocidadIA = params.get('velocidad') as typeof juego.opciones.velocidadIA;
 
 // Gancho para pruebas automáticas (Playwright).
-const depuracion = { juego, escenas, flujo, partidasTerminadas: 0, ultimoResultado: null as ResultadoPartida | null };
+const depuracion = {
+  juego,
+  escenas,
+  flujo,
+  partidasTerminadas: 0,
+  manosTerminadas: 0,
+  ultimoResultado: null as ResultadoPartida | null,
+};
 (window as unknown as { __mus: unknown }).__mus = depuracion;
 
 /** ?mesa: entra directamente en una partida (pruebas y desarrollo). */
@@ -73,6 +80,7 @@ function empezarMesa(): void {
     alPausar: () => flujo.pausa(mesa),
     alTerminar: (r) => {
       depuracion.partidasTerminadas++;
+      depuracion.manosTerminadas += r.estadisticas.manos;
       depuracion.ultimoResultado = r;
       empezarMesa();
     },
