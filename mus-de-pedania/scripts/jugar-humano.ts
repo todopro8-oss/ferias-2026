@@ -24,6 +24,7 @@ await pagina.goto(`http://localhost:${puerto}/?semilla=${semilla}&turbo=${turbo}
 await pagina.waitForTimeout(1000);
 
 let decisiones = 0;
+let senas = 0;
 const t0 = Date.now();
 while (Date.now() - t0 < 600_000) {
   const info = await pagina.evaluate(() => {
@@ -36,7 +37,12 @@ while (Date.now() - t0 < 600_000) {
     await pagina.waitForTimeout(100);
     continue;
   }
-  const { estado, decision, misCartas } = info.dep;
+  const { estado, decision, misCartas, ventanaSenas } = info.dep;
+  if (ventanaSenas && estado === 'humano' && Math.random() < 0.3) {
+    await pagina.keyboard.press('s');
+    await pagina.keyboard.press(String(1 + Math.floor(Math.random() * 5)));
+    senas++;
+  }
   if (estado === 'continuar') {
     await pagina.keyboard.press('Space');
   } else if (estado === 'humano' && decision) {
@@ -64,7 +70,9 @@ while (Date.now() - t0 < 600_000) {
 }
 const final = await pagina.evaluate(() => (window as any).__mus.partidasTerminadas);
 const resultado = await pagina.evaluate(() => (window as any).__mus.ultimoResultado);
-console.log(`Partidas terminadas: ${final} · decisiones del humano: ${decisiones} · ${(Date.now() - t0) / 1000}s`);
+console.log(
+  `Partidas terminadas: ${final} · decisiones del humano: ${decisiones} · señas: ${senas} · ${(Date.now() - t0) / 1000}s`,
+);
 console.log('Último resultado:', JSON.stringify(resultado));
 if (errores.length) {
   console.log('ERRORES:');

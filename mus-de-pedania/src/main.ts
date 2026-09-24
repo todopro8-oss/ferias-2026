@@ -41,6 +41,12 @@ const juego: Juego = {
   audio: AUDIO_MUDO,
 };
 
+// Ajustes de desarrollo por URL (?senas=discreto&chivato&dificultad=dificil&velocidad=rapida).
+if (params.has('senas')) juego.opciones.senas = params.get('senas') as typeof juego.opciones.senas;
+if (params.has('chivato')) juego.opciones.chivato = true;
+if (params.has('dificultad')) juego.opciones.dificultad = params.get('dificultad') as typeof juego.opciones.dificultad;
+if (params.has('velocidad')) juego.opciones.velocidadIA = params.get('velocidad') as typeof juego.opciones.velocidadIA;
+
 function empezarMesa(): void {
   const rivales = (params.get('rivales') ?? 'canijo,rufi').split(',') as [IdPersonaje, IdPersonaje];
   const mesa = new Mesa(juego, {

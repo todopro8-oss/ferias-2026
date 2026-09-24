@@ -99,3 +99,23 @@ Cada entrada: qué se decidió y por qué.
 - **«Difícil» aprende del humano.** Tras cada destape se mira si los envites del humano eran farol
   (percentil de su mano en ese lance < 0,4). La tasa suavizada `(faroles + 1)/(envites + 5)` hace que
   los rivales le quieran más a menudo cuando es él quien apuesta.
+
+## Señas (H5)
+
+- **Ventana de señas.** Abierta mientras el motor está en la fase de mus o de descarte, o en los lances
+  de grande y chica. Se cierra en cuanto llegan las declaraciones de pares.
+- **Señas caducadas.** Tras cada descarte (nueva ronda de mus) se olvidan las señas vistas: describían
+  una mano que ya no existe.
+- **Qué seña hace la IA.** Siempre dice la verdad y enseña su jugada más valiosa: duples, 31 (o 30),
+  medias, tres reyes (de la casa), dos reyes, dos ases, ciego (de la casa). La hace con probabilidad
+  `franqueza`, una vez por ventana, al abrirse ésta.
+- **Probabilidad de caza.** `min(0,95; vista × factor de dificultad)`, multiplicado en modo discreto por
+  `0,45 · (1,2 − disimulo del que la hace)`. La spec no decía dónde entraba el disimulo, y así una
+  Marisa teatral (0,10) se deja ver mucho más que don Anselmo (0,80).
+- **Señas del humano.** Como la vista es en primera persona, tu gesto se ve como un bocadillo gris
+  («(te muerdes el labio)»). El compañero la recibe y se la cree, aunque sea falsa, y la usa en su
+  Monte Carlo y en su decisión de mus. Los rivales pueden cazarla.
+- **«¡Te he visto!».** Sólo en modo discreto, con la opción activada: clic en la cara de un rival
+  mientras hace una seña. Queda en el historial y el rival «se pica», con +0,08 de agresividad para el
+  resto de la partida.
+- **Chivato.** Apunta en el historial (tecla L) todas las señas de la IA, con su significado.

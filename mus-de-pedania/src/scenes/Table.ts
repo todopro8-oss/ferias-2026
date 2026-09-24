@@ -5,6 +5,7 @@
 import { crearJugador } from '../ai/fabrica';
 import type { JugadorMus } from '../ai/jugadorMus';
 import { vistaPara, type SenaVista } from '../ai/view';
+import { catalogoActivo, duracionSena, elegirSenaIA, probabilidadCaza, sena, type IdSena } from '../ai/senas';
 import { percentilEnLance, tablas } from '../ai/handValue';
 import { hojaPersonaje } from '../core/assets';
 import { ALTO_LINEA, envolver, texto } from '../core/bitmapFont';
@@ -50,8 +51,12 @@ export interface EstadisticasPartida {
   manos: number;
   ordagosLanzados: number;
   ordagosAceptados: number;
+  /** Señas que ha hecho el humano. */
   senasHechas: number;
+  /** Señas de los rivales que ha cazado el humano («¡Te he visto!»). */
   senasCazadas: number;
+  /** Señas del humano que le han cazado los rivales. */
+  senasPilladas: number;
   juegos: [number, number];
   piedras: [number, number];
 }
@@ -126,6 +131,11 @@ export class Mesa implements Escena {
   private temblor = 0;
   finJuegoPendiente = false;
   senasVistas: Record<Seat, SenaVista[]> = { 0: [], 1: [], 2: [], 3: [] };
+  /** Señas que la IA hará en cuanto pase su momento (dentro de la ventana de señas). */
+  private senasPendientes: { s: 1 | 2 | 3; id: IdSena; en: number }[] = [];
+  /** Seña que está haciendo cada asiento ahora mismo (para «¡Te he visto!»). */
+  private senaEnCurso: Partial<Record<Seat, { id: IdSena; restante: number; pillada: boolean }>> = {};
+  menuSenas = false;
   /** Lo que la IA «Difícil» aprende del humano: cuántas veces envida y cuántas era farol. */
   private modeloHumano = { envites: 0, faroles: 0 };
   readonly estadisticas: EstadisticasPartida = {
@@ -134,6 +144,7 @@ export class Mesa implements Escena {
     ordagosAceptados: 0,
     senasHechas: 0,
     senasCazadas: 0,
+    senasPilladas: 0,
     juegos: [0, 0],
     piedras: [0, 0],
   };
@@ -153,7 +164,7 @@ export class Mesa implements Escena {
     const crear = (s: 1 | 2 | 3) =>
       crearJugador(
         {
-          personalidad: PERSONAJES[this.ids[s]].stats,
+          personalidad: { ...PERSONAJES[this.ids[s]].stats },
           dificultad: o.dificultad,
           nombre: PERSONAJES[this.ids[s]].corto,
           estilo: PERSONAJES[this.ids[s]].estilo,
@@ -209,6 +220,9 @@ export class Mesa implements Escena {
     this.historial = [];
     this.finJuegoPendiente = false;
     this.senasVistas = { 0: [], 1: [], 2: [], 3: [] };
+    this.senasPendientes = [];
+    this.senaEnCurso = {};
+    this.menuSenas = false;
     this.marcadorVisible = [this.partida.marcador[0], this.partida.marcador[1]];
     this.montones = [this.partida.marcador[0], this.partida.marcador[1]];
     this.estado = 'eventos';
@@ -249,6 +263,7 @@ export class Mesa implements Escena {
       this.juego.pantalla.temblor.x = this.temblor > 0 ? (Math.floor(this.temblor / 30) % 2 ? 2 : -2) : 0;
     }
     for (const e of [0, 1] as const) if (this.resaltarMarcador[e] > 0) this.resaltarMarcador[e] -= dt;
+    this.actualizarSenas(dt);
 
     if (this.estado === 'continuar' || this.estado === 'fin') {
       if (this.iaHumano && this.estado === 'continuar' && !this.anim.ocupado) this.continuar();
@@ -332,7 +347,9 @@ export class Mesa implements Escena {
         this.espera = 80 * r;
         break;
       case 'fase_mus':
-        this.espera = 250 * r;
+        // Cartas nuevas: lo que se señó antes ya no vale.
+        if (e.ronda > 0) this.senasVistas = { 0: [], 1: [], 2: [], 3: [] };
+        this.espera = (this.programarSenasIA() ? 700 : 250) * r;
         break;
       case 'habla':
         this.hablar(e.jugador, e.voz, e.cantidad, e.lance);
@@ -353,7 +370,7 @@ export class Mesa implements Escena {
         this.espera = 600 * r;
         break;
       case 'corte_mus':
-        this.espera = 200 * r;
+        this.espera = (this.programarSenasIA() ? 700 : 200) * r;
         break;
       case 'lance_inicio':
         this.lanceActual = e.lance;
@@ -677,6 +694,143 @@ export class Mesa implements Escena {
   }
 
   // ---------------------------------------------------------------------------
+  // Señas (sección 7)
+  // ---------------------------------------------------------------------------
+
+  /** Las señas se hacen durante el mus y desde que se corta hasta que empieza el lance de pares. */
+  get ventanaSenas(): boolean {
+    if (this.config.senas === 'off' || !this.mano || this.mano.terminada) return false;
+    const f = this.mano.fase;
+    if (f === 'mus' || f === 'descarte') return true;
+    return this.mano.lance === 'grande' || this.mano.lance === 'chica';
+  }
+
+  /** Decide qué IA hará seña en esta ventana. Devuelve true si alguna la hará. */
+  private programarSenasIA(): boolean {
+    if (this.config.senas === 'off' || !this.mano) return false;
+    this.senasPendientes = [];
+    let alguna = false;
+    for (const s of [1, 2, 3] as const) {
+      const id = elegirSenaIA(
+        this.mano.manos[s],
+        this.config.reyes,
+        this.config.senasDeLaCasa,
+        this.ias[s].perfil.personalidad,
+        this.rng,
+      );
+      if (!id) continue;
+      this.senasPendientes.push({ s, id, en: this.tiempo + (150 + this.rng() * 500) * this.ritmo });
+      alguna = true;
+    }
+    return alguna;
+  }
+
+  private actualizarSenas(dt: number): void {
+    for (const k of Object.keys(this.senaEnCurso)) {
+      const s = Number(k) as Seat;
+      const en = this.senaEnCurso[s]!;
+      en.restante -= dt;
+      if (en.restante <= 0) delete this.senaEnCurso[s];
+    }
+    if (this.senasPendientes.length === 0) return;
+    if (!this.ventanaSenas) {
+      this.senasPendientes = [];
+      return;
+    }
+    const listas = this.senasPendientes.filter((p) => p.en <= this.tiempo);
+    this.senasPendientes = this.senasPendientes.filter((p) => p.en > this.tiempo);
+    for (const p of listas) this.hacerSena(p.s, p.id);
+  }
+
+  /** Alguien hace una seña: la ve su compañero y quizá la cazan los rivales. */
+  hacerSena(s: Seat, id: IdSena): void {
+    const def = sena(id);
+    const modo = this.config.senas;
+    const dur = duracionSena(modo);
+    const nombres = this.nombres();
+    if (s === 0) {
+      this.estadisticas.senasHechas++;
+      this.bocadillos[0] = crearBocadillo(`(${def.gesto.toLowerCase()})`, LAYOUT.bocadillos[0], Math.max(dur, 900), {
+        tinta: D.gris,
+      });
+      this.historial.push(`Haces la seña: ${def.gesto.toLowerCase()} (${def.quiere}).`);
+      // El compañero te mira: la ha visto.
+      this.bustos[2].mostrar('mirar_pareja', 700);
+    } else {
+      this.bustos[s as 1 | 2 | 3].mostrar(def.animacion, dur);
+      if (this.juego.opciones.chivato) {
+        this.historial.push(`[Chivato] ${nombres[s]}: ${def.gesto.toLowerCase()} → ${def.quiere}.`);
+      }
+    }
+    this.senaEnCurso[s] = { id, restante: dur, pillada: false };
+    const significado = def.significado;
+    // Su compañero (si es IA) la recibe y se la cree.
+    const comp = companero(s);
+    if (comp !== 0) this.senasVistas[comp].push({ de: s, significado, deCompanero: true });
+    // Los rivales IA pueden cazarla.
+    const emisor = s === 0 ? undefined : this.ias[s as 1 | 2 | 3].perfil.personalidad;
+    let cazador: 1 | 2 | 3 | null = null;
+    for (const o of [1, 2, 3] as const) {
+      if (equipoDe(o) === equipoDe(s)) continue;
+      const p = probabilidadCaza(this.ias[o].perfil.personalidad, this.juego.opciones.dificultad, modo, emisor);
+      if (this.rng() < p) {
+        this.senasVistas[o].push({ de: s, significado, deCompanero: false });
+        if (!cazador) cazador = o;
+      }
+    }
+    if (cazador !== null) {
+      if (s === 0) this.estadisticas.senasPilladas++;
+      if (this.rng() < Math.max(0.5, this.probabilidadCharla())) {
+        const quien = cazador;
+        this.anim.agregar({ dur: 0, retardo: dur * 0.6, alTerminar: () => this.decir(quien, 'senaCazada') });
+        if (s !== 0 && this.rng() < 0.6) {
+          const emisorS = s;
+          this.anim.agregar({
+            dur: 0,
+            retardo: dur * 0.6 + 1200 * this.ritmo,
+            alTerminar: () => this.decir(emisorS, 'lePillanSena'),
+          });
+        }
+      }
+      this.historial.push(
+        s === 0
+          ? `${nombres[cazador]} te ha cazado la seña.`
+          : `${nombres[cazador]} ha cazado una seña de ${nombres[s]}.`,
+      );
+    }
+  }
+
+  /** Extra del remake: clic en la cara de un rival mientras hace una seña. */
+  private teHeVisto(s: 1 | 3): boolean {
+    const en = this.senaEnCurso[s];
+    if (!en || en.pillada) return false;
+    en.pillada = true;
+    this.estadisticas.senasCazadas++;
+    const nombres = this.nombres();
+    this.bocadillos[0] = crearBocadillo('¡Te he visto!', LAYOUT.bocadillos[0], 1800 * this.ritmo, { tinta: P.copas });
+    this.historial.push(`Has cazado una seña de ${nombres[s]}: ${sena(en.id).quiere}.`);
+    // El rival se pica: se vuelve algo más agresivo el resto de la partida.
+    const pers = this.ias[s].perfil.personalidad;
+    pers.agr = Math.min(1, pers.agr + 0.08);
+    this.bustos[s].mostrar('cabreado', 1400 * this.ritmo);
+    this.anim.agregar({ dur: 0, retardo: 700 * this.ritmo, alTerminar: () => this.decir(s, 'lePillanSena') });
+    return true;
+  }
+
+  private rectMenuSenas() {
+    const opciones = catalogoActivo(this.config.senasDeLaCasa);
+    return { x: 4, y: 128 - (opciones.length * 11 + 16), w: 168, h: opciones.length * 11 + 14, opciones };
+  }
+
+  private elegirSenaHumano(i: number): void {
+    const { opciones } = this.rectMenuSenas();
+    const def = opciones[i];
+    this.menuSenas = false;
+    if (!def || !this.ventanaSenas) return;
+    this.hacerSena(0, def.id);
+  }
+
+  // ---------------------------------------------------------------------------
   // Decisiones del humano
   // ---------------------------------------------------------------------------
 
@@ -805,6 +959,38 @@ export class Mesa implements Escena {
       this.verHistorial = false;
       return;
     }
+    // Menú de señas
+    if (this.menuSenas) {
+      if (e.tipo === 'tecla') {
+        const k = e.tecla.toLowerCase();
+        const n = Number(k);
+        if (n >= 1 && n <= 7) this.elegirSenaHumano(n - 1);
+        else if (k === 'escape' || k === 's') this.menuSenas = false;
+        return;
+      }
+      if (e.tipo === 'clic') {
+        const r = this.rectMenuSenas();
+        if (dentro(e.x, e.y, r)) {
+          const i = Math.floor((e.y - r.y - 12) / 11);
+          if (i >= 0) this.elegirSenaHumano(i);
+        } else this.menuSenas = false;
+        return;
+      }
+    }
+    if (e.tipo === 'tecla' && e.tecla.toLowerCase() === 's' && this.ventanaSenas) {
+      this.menuSenas = true;
+      return;
+    }
+    if (e.tipo === 'clic') {
+      const pl = LAYOUT.panelLances;
+      if (this.ventanaSenas && dentro(e.x, e.y, { x: pl.x + 4, y: pl.y + pl.h - 14, w: pl.w - 8, h: 11 })) {
+        this.menuSenas = true;
+        return;
+      }
+      if (this.juego.opciones.teHeVisto && this.config.senas === 'discreto') {
+        for (const s of [1, 3] as const) if (dentro(e.x, e.y, LAYOUT.caras[s]) && this.teHeVisto(s)) return;
+      }
+    }
     if (this.grupo.entrada(e)) return;
     const d = this.decisionMostrada;
     if (e.tipo === 'tecla') {
@@ -883,6 +1069,7 @@ export class Mesa implements Escena {
     }
     this.dibujarBanner(ctx);
     if (this.op.titulo) texto(ctx, this.op.titulo, 316, 38, P.tinta, { alinear: 'derecha' });
+    if (this.menuSenas) this.dibujarMenuSenas(ctx);
     if (this.verAyuda) this.dibujarAyuda(ctx);
     if (this.verHistorial || this.juego.opciones.historialVisible) this.dibujarHistorial(ctx, this.verHistorial);
     ctx.restore();
@@ -978,10 +1165,17 @@ export class Mesa implements Escena {
       if (estado)
         texto(ctx, estado, x + w - 3, ly, actual ? P.oros : P.tiza_sombra, { alinear: 'derecha', variante: 'tiza' });
     });
-    // Botón de señas (se activa en H5)
+    // Botón de señas
+    if (this.config.senas === 'off') return;
+    const activo = this.ventanaSenas && this.estado !== 'continuar';
+    const raton = this.juego.entrada.raton;
     const bs = { x: x + 4, y: y + h - 14, w: w - 8, h: 11 };
-    caja(ctx, bs.x, bs.y, bs.w, bs.h, D.pizarra_clara);
-    texto(ctx, UI.botones.senas, bs.x + bs.w / 2, bs.y + 2, P.tiza_sombra, { alinear: 'centro' });
+    const hover = activo && raton.dentro && dentro(raton.x, raton.y, bs);
+    caja(ctx, bs.x, bs.y, bs.w, bs.h, P.negro);
+    caja(ctx, bs.x + 1, bs.y + 1, bs.w - 2, bs.h - 2, !activo ? D.pizarra_clara : hover ? D.bastos_brillo : P.bastos);
+    texto(ctx, `${UI.botones.senas} (S)`, bs.x + bs.w / 2, bs.y + 2, activo ? P.papel : P.tiza_sombra, {
+      alinear: 'centro',
+    });
   }
 
   private dibujarPanelAcciones(ctx: CanvasRenderingContext2D): void {
@@ -1034,6 +1228,29 @@ export class Mesa implements Escena {
     texto(ctx, ayuda, 160, 48, P.tiza, { alinear: 'centro' });
   }
 
+  private dibujarMenuSenas(ctx: CanvasRenderingContext2D): void {
+    const r = this.rectMenuSenas();
+    panelPizarra(ctx, r.x, r.y, r.w, r.h);
+    texto(ctx, 'SEÑAS AL COMPAÑERO', r.x + r.w / 2, r.y + 2, P.oros, { alinear: 'centro', variante: 'tiza' });
+    const raton = this.juego.entrada.raton;
+    r.opciones.forEach((def, i) => {
+      const y = r.y + 13 + i * 11;
+      const hover = raton.dentro && dentro(raton.x, raton.y, { x: r.x, y: y - 1, w: r.w, h: 11 });
+      if (hover) caja(ctx, r.x + 1, y - 1, r.w - 2, 10, D.pizarra_clara);
+      texto(ctx, `${i + 1}`, r.x + 3, y, P.oros);
+      texto(ctx, def.gesto, r.x + 11, y, P.tiza, { variante: 'tiza' });
+    });
+    // Significado de la seña bajo el ratón
+    const i = Math.floor((raton.y - r.y - 12) / 11);
+    const def = raton.dentro && dentro(raton.x, raton.y, r) ? r.opciones[i] : undefined;
+    if (def) {
+      const t = `= ${def.quiere}`;
+      caja(ctx, r.x + r.w + 2, r.y + 13 + i * 11 - 2, [...t].length * 6 + 5, 11, P.negro);
+      caja(ctx, r.x + r.w + 3, r.y + 13 + i * 11 - 1, [...t].length * 6 + 3, 9, P.papel);
+      texto(ctx, t, r.x + r.w + 5, r.y + 13 + i * 11, P.tinta);
+    }
+  }
+
   private dibujarHistorial(ctx: CanvasRenderingContext2D, completo: boolean): void {
     const x = completo ? 40 : 84;
     const y = completo ? 16 : 2;
@@ -1059,6 +1276,8 @@ export class Mesa implements Escena {
       juegos: [...this.partida.juegos],
       mano: this.partida.numeroMano,
       animaciones: this.anim.cuantas,
+      ventanaSenas: this.ventanaSenas,
+      senasVistas: this.senasVistas,
     };
   }
 
