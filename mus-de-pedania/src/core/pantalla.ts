@@ -38,10 +38,27 @@ export class Pantalla {
     this.ajustar();
   }
 
+  /** Espacio disponible: el del contenedor del canvas (sin su relleno) o, si no hay, la ventana. */
+  private espacio(): { w: number; h: number } {
+    const cont = this.canvas.parentElement;
+    if (cont && cont !== document.body && cont.clientWidth > 0 && cont.clientHeight > 0) {
+      const cs = getComputedStyle(cont);
+      return {
+        w: cont.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        h: cont.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+      };
+    }
+    return { w: window.innerWidth, h: window.innerHeight };
+  }
+
   ajustar(): void {
     const altoLogico = this.correccion43 ? 240 : ALTO;
-    const maxEscala = Math.max(1, Math.floor(Math.min(window.innerWidth / ANCHO, window.innerHeight / altoLogico)));
-    const escala = this.escalado === 'auto' ? maxEscala : Math.min(this.escalado, Math.max(maxEscala, 1));
+    const { w, h } = this.espacio();
+    const exacta = Math.min(w / ANCHO, h / altoLogico);
+    const maxEscala = Math.max(1, Math.floor(exacta));
+    let escala = this.escalado === 'auto' ? maxEscala : Math.min(this.escalado, Math.max(maxEscala, 1));
+    // En pantallas pequeñas (móvil), mejor aprovechar el ancho aunque el escalado no sea entero.
+    if (this.escalado === 'auto' && maxEscala < 2 && exacta > 0) escala = Math.max(0.5, exacta);
     this.escalaActual = escala;
     this.canvas.style.width = `${ANCHO * escala}px`;
     this.canvas.style.height = `${altoLogico * escala}px`;

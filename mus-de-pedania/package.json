@@ -17,7 +17,8 @@
     "sim": "tsx scripts/sim.ts",
     "partida": "tsx scripts/partida.ts",
     "voices:manifest": "tsx scripts/voices-manifest.ts",
-    "personalidades": "tsx scripts/personalidades.ts"
+    "personalidades": "tsx scripts/personalidades.ts",
+    "artifact": "npm run build && tsx scripts/artifact.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
