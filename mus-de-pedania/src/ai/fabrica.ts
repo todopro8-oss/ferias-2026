@@ -1,9 +1,23 @@
 import type { Rng } from '../core/rng';
 import type { Seat } from '../mus/config';
-import { JugadorAleatorio } from './aleatoria';
-import type { JugadorIA } from './jugador';
+import { EstimadorHeuristico, type Estimador } from './estimacion';
+import { JugadorMus } from './jugadorMus';
+import { PERSONALIDAD_NEUTRA, type Dificultad, type PerfilIA, type Personalidad } from './personalities';
 
-/** Jugador IA por defecto para el simulador. (H1: aleatorio; la IA heurística llega en H2.) */
-export function crearJugadorPorDefecto(_asiento: Seat, rng: Rng): JugadorIA {
-  return new JugadorAleatorio(rng);
+export function crearEstimador(_dificultad: Dificultad): Estimador {
+  return new EstimadorHeuristico();
+}
+
+export function crearJugador(perfil: PerfilIA, rng: Rng): JugadorMus {
+  return new JugadorMus(perfil, rng, crearEstimador(perfil.dificultad));
+}
+
+/** Jugador neutro para el simulador. */
+export function crearJugadorPorDefecto(
+  asiento: Seat,
+  rng: Rng,
+  dificultad: Dificultad = 'normal',
+  personalidad: Personalidad = PERSONALIDAD_NEUTRA,
+): JugadorMus {
+  return crearJugador({ personalidad, dificultad, nombre: `IA${asiento}` }, rng);
 }

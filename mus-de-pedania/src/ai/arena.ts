@@ -2,7 +2,7 @@
 // que el marcador es coherente. La usan el simulador, la partida en consola y los tests.
 
 import type { Rng } from '../core/rng';
-import { juegosParaGanar, type Equipo, type MusConfig } from '../mus/config';
+import { juegosParaGanar, type Equipo, type MusConfig, type Seat } from '../mus/config';
 import type { Lance } from '../mus/evaluate';
 import type { ManoMus } from '../mus/handState';
 import { PartidaMus } from '../mus/match';
@@ -16,7 +16,7 @@ const MAX_DECISIONES = 5000;
 export function jugarMano(
   m: ManoMus,
   jugadores: readonly JugadorIA[],
-  alDecidir?: (m: ManoMus) => void,
+  alDecidir?: (m: ManoMus, jugador: Seat) => void,
   juegos?: [number, number],
 ): number {
   let n = 0;
@@ -24,7 +24,7 @@ export function jugarMano(
     if (++n > MAX_DECISIONES) throw new Error('La mano no termina (¿bucle de apuestas?)');
     const accion = jugadores[d.jugador].decidir(vistaPara(m, d.jugador, { juegos }), d);
     m.actuar(d.jugador, accion);
-    alDecidir?.(m);
+    alDecidir?.(m, d.jugador);
   }
   return n;
 }

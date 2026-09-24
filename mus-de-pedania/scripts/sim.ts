@@ -12,7 +12,7 @@ import { argumentos } from './args';
 const args = argumentos(process.argv.slice(2));
 const manos = Number(args.hands ?? args.manos ?? 10000);
 const semilla = Number(args.seed ?? args.semilla ?? 1);
-const tipoIA = String(args.ia ?? 'aleatoria');
+const tipoIA = String(args.ia ?? 'heuristica');
 const config = crearConfig({
   reyes: Number(args.reyes ?? 8) === 4 ? 4 : 8,
   puntosJuego: Number(args.puntos ?? 40) === 30 ? 30 : 40,
