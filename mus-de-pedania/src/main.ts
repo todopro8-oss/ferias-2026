@@ -1,12 +1,13 @@
 import { cargarRecursos } from './core/assets';
-import { AUDIO_MUDO, OPCIONES_POR_DEFECTO, type Juego } from './core/juego';
+import { AUDIO_MUDO, type Juego } from './core/juego';
 import { Bucle } from './core/loop';
 import { Entrada } from './core/input';
 import { Pantalla } from './core/pantalla';
 import { GestorEscenas } from './core/sceneManager';
 import type { IdPersonaje } from './data/characters';
+import { Flujo } from './scenes/flujo';
 import { Galeria } from './scenes/Galeria';
-import { Mesa } from './scenes/Table';
+import { Mesa, type ResultadoPartida } from './scenes/Table';
 
 const pantalla = new Pantalla(document.getElementById('pantalla') as HTMLCanvasElement);
 const entrada = new Entrada(pantalla);
@@ -17,7 +18,9 @@ const bucle = new Bucle({
   actualizar: (dt) => {
     juego.tiempo += dt;
     for (const e of entrada.sacar()) {
-      if (e.tipo === 'tecla' && e.tecla.toLowerCase() === 'f' && !e.repetida) void pantalla.alternarPantallaCompleta();
+      if (e.tipo === 'tecla' && e.tecla.toLowerCase() === 'f' && !e.repetida && escenas.actual?.nombre !== 'Nombre') {
+        void pantalla.alternarPantallaCompleta();
+      }
       escenas.entrada(e);
     }
     escenas.actualizar(dt);
@@ -34,19 +37,27 @@ const juego: Juego = {
   entrada,
   escenas,
   bucle,
-  opciones: structuredClone(OPCIONES_POR_DEFECTO),
-  guardarOpciones: () => {},
+  opciones: Flujo.cargarOpciones(),
+  guardarOpciones: () => flujo.guardarOpciones(),
   tiempo: 0,
   turbo: 1,
   audio: AUDIO_MUDO,
 };
+pantalla.configurar(juego.opciones.escalado, juego.opciones.correccion43);
+const flujo = new Flujo(juego);
 
 // Ajustes de desarrollo por URL (?senas=discreto&chivato&dificultad=dificil&velocidad=rapida).
 if (params.has('senas')) juego.opciones.senas = params.get('senas') as typeof juego.opciones.senas;
 if (params.has('chivato')) juego.opciones.chivato = true;
 if (params.has('dificultad')) juego.opciones.dificultad = params.get('dificultad') as typeof juego.opciones.dificultad;
+if (params.has('demo')) flujo.demo = true;
 if (params.has('velocidad')) juego.opciones.velocidadIA = params.get('velocidad') as typeof juego.opciones.velocidadIA;
 
+// Gancho para pruebas automáticas (Playwright).
+const depuracion = { juego, escenas, flujo, partidasTerminadas: 0, ultimoResultado: null as ResultadoPartida | null };
+(window as unknown as { __mus: unknown }).__mus = depuracion;
+
+/** ?mesa: entra directamente en una partida (pruebas y desarrollo). */
 function empezarMesa(): void {
   const rivales = (params.get('rivales') ?? 'canijo,rufi').split(',') as [IdPersonaje, IdPersonaje];
   const mesa = new Mesa(juego, {
@@ -54,6 +65,7 @@ function empezarMesa(): void {
     rivales,
     semilla: params.has('semilla') ? Number(params.get('semilla')) : undefined,
     autoJugar: params.has('auto'),
+    alPausar: () => flujo.pausa(mesa),
     alTerminar: (r) => {
       depuracion.partidasTerminadas++;
       depuracion.ultimoResultado = r;
@@ -69,8 +81,12 @@ async function arrancar(): Promise<void> {
     const g = new Galeria(params.get('galeria') ?? 'cartas');
     g.pagina = Number(params.get('pagina') ?? 0);
     escenas.cambiar(g);
-  } else {
+  } else if (params.has('mesa') || params.has('semilla') || params.has('auto')) {
     empezarMesa();
+  } else if (params.has('menu')) {
+    flujo.menu();
+  } else {
+    flujo.arrancar();
   }
   if (params.has('turbo')) {
     juego.turbo = Number(params.get('turbo'));
@@ -78,9 +94,5 @@ async function arrancar(): Promise<void> {
   }
   bucle.empezar();
 }
-
-// Gancho para pruebas automáticas (Playwright).
-const depuracion = { juego, escenas, partidasTerminadas: 0, ultimoResultado: null as unknown };
-(window as unknown as { __mus: unknown }).__mus = depuracion;
 
 void arrancar();

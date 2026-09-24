@@ -77,6 +77,15 @@ export interface OpcionesMesa {
   alTerminar?: (r: ResultadoPartida) => void;
   /** Modo de prueba: el humano también lo juega la IA (prueba de resistencia). */
   autoJugar?: boolean;
+  /** Esc: pausa. */
+  alPausar?: () => void;
+  /** Mano guiada: cartas fijadas, postre fijo y pistas según la decisión. */
+  tutorial?: {
+    manos: Carta[][];
+    postre: Seat;
+    pista: (d: Decision | null, mesa: Mesa) => string | null;
+    alSalir: () => void;
+  };
 }
 
 type EstadoMesa = 'eventos' | 'pensando' | 'humano' | 'continuar' | 'fin';
@@ -124,7 +133,7 @@ export class Mesa implements Escena {
   private bocadillos: Partial<Record<Seat | 4, Bocadillo>> = {};
   private banner: { texto: string; color: string; restante: number } | null = null;
   private historial: string[] = [];
-  private verHistorial = false;
+  verHistorial = false;
   private verAyuda = false;
   private tiempo = 0;
   private tSinHablar = 0;
@@ -159,7 +168,7 @@ export class Mesa implements Escena {
     this.rng = mulberry32(semilla);
     this.lineas = new SelectorLineas(mulberry32(derivarSemilla(this.rng)));
     this.camarero = new Camarero(mulberry32(derivarSemilla(this.rng)));
-    this.partida = new PartidaMus(this.config, mulberry32(derivarSemilla(this.rng)));
+    this.partida = new PartidaMus(this.config, mulberry32(derivarSemilla(this.rng)), op.tutorial?.postre);
     this.ids = { 1: op.rivales[0], 2: op.companero, 3: op.rivales[1] };
     const crear = (s: 1 | 2 | 3) =>
       crearJugador(
@@ -206,7 +215,9 @@ export class Mesa implements Escena {
   }
 
   private nuevaMano(): void {
-    this.mano = this.partida.nuevaMano();
+    this.mano = this.partida.nuevaMano(
+      this.op.tutorial && this.partida.numeroMano === 0 ? this.op.tutorial.manos : undefined,
+    );
     this.dorsos = [0, 0, 0, 0];
     this.misCartas = [];
     this.seleccion.clear();
@@ -477,6 +488,11 @@ export class Mesa implements Escena {
     this.estadisticas.piedras[1] += m.marcador[1] - m.marcadorInicial[1];
     this.partida.cerrarMano();
     this.estadisticas.juegos = [this.partida.juegos[0], this.partida.juegos[1]];
+    if (this.op.tutorial) {
+      this.estado = 'fin';
+      this.op.tutorial.alSalir();
+      return;
+    }
     if (this.partida.terminada) {
       this.estado = 'fin';
       const ganador = this.partida.ganador!;
@@ -954,6 +970,11 @@ export class Mesa implements Escena {
         this.verHistorial = false;
         return;
       }
+      if (k === 'escape' && !this.menuSenas) {
+        if (this.verAyuda) this.verAyuda = false;
+        else this.op.alPausar?.();
+        return;
+      }
     }
     if (this.verHistorial && e.tipo === 'clic') {
       this.verHistorial = false;
@@ -1068,7 +1089,13 @@ export class Mesa implements Escena {
       if (b) dibujarBocadillo(ctx, b);
     }
     this.dibujarBanner(ctx);
-    if (this.op.titulo) texto(ctx, this.op.titulo, 316, 38, P.tinta, { alinear: 'derecha' });
+    if (this.op.titulo) {
+      const w = [...this.op.titulo].length * 6 + 6;
+      caja(ctx, 316 - w, 36, w, 11, P.negro);
+      caja(ctx, 317 - w, 37, w - 2, 9, P.papel);
+      texto(ctx, this.op.titulo, 313, 38, P.copas, { alinear: 'derecha' });
+    }
+    if (this.op.tutorial) this.dibujarPista(ctx);
     if (this.menuSenas) this.dibujarMenuSenas(ctx);
     if (this.verAyuda) this.dibujarAyuda(ctx);
     if (this.verHistorial || this.juego.opciones.historialVisible) this.dibujarHistorial(ctx, this.verHistorial);
@@ -1284,6 +1311,24 @@ export class Mesa implements Escena {
   /** Nombre del equipo, para pantallas de fin. */
   static nombreEquipo(e: Equipo): string {
     return NOMBRE_EQUIPO[e];
+  }
+
+  private dibujarPista(ctx: CanvasRenderingContext2D): void {
+    const d = this.estado === 'humano' ? this.decisionMostrada : null;
+    const pista = this.op.tutorial!.pista(this.estado === 'continuar' ? null : d, this);
+    if (!pista) return;
+    const lineas = envolver(pista, 34);
+    const h = lineas.length * 10 + 6;
+    const x = 84;
+    const y = 2;
+    caja(ctx, x, y, 212, h, P.negro);
+    caja(ctx, x + 1, y + 1, 210, h - 2, D.crema_boton);
+    lineas.forEach((l, i) => texto(ctx, l, x + 4, y + 4 + i * 10, P.tinta));
+  }
+
+  /** Hojas y expresiones de los tres para la viñeta del final. */
+  bustosParaFinal(): { ids: Record<1 | 2 | 3, IdPersonaje> } {
+    return { ids: { ...this.ids } };
   }
 
   get companeroSeat(): Seat {

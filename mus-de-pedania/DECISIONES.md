@@ -119,3 +119,23 @@ Cada entrada: qué se decidió y por qué.
   mientras hace una seña. Queda en el historial y el rival «se pica», con +0,08 de agresividad para el
   resto de la partida.
 - **Chivato.** Apunta en el historial (tecla L) todas las señas de la IA, con su significado.
+
+## Flujo, torneo y guardado (H6)
+
+- **Rivales del torneo.** La spec habla de «los 5 personajes restantes», pero de 7 personajes, quitando
+  a tu compañero, quedan 6 (tú no eres ninguno). Se usan los 6: la final la juegan los dos de más nivel,
+  y cuartos y semifinal, parejas formadas con los otros cuatro, sin repetir a nadie. Así se cumple
+  «pareja nueva cada ronda» y salen todos.
+- **Cuadro.** Los personajes rivales siempre ganan sus partidos contra parejas de relleno, para que
+  aparezcan donde toca; los partidos de relleno se simulan con marcadores verosímiles (40 a 12-37).
+  Si te eliminan, se simula el resto del cuadro para que el cartel quede completo.
+- **Opciones durante la partida.** Desde la pausa se pueden cambiar opciones. La velocidad, el
+  parloteo, el chivato, el historial y el audio se aplican al momento. Las reglas y la dificultad no:
+  valen para la próxima partida, porque cambiar a 4 reyes en mitad de un juego no tiene sentido.
+- **Salir.** En el navegador no se puede cerrar la pestaña desde el juego: «Café: Salir» se despide.
+- **Tu nombre.** Se pide al inscribirse en el torneo (máx. 10 caracteres; por defecto «Forastero») y
+  sale en la placa del campeón.
+- **Guardado.** `musped.opciones` guarda las opciones, completadas con las de por defecto si aparecen
+  claves nuevas. `musped.torneo` guarda el cuadro en curso y `musped.estadisticas` los totales. Cada
+  valor va envuelto con su número de versión; si no coincide y no hay migración, se usa el valor por
+  defecto. Si localStorage no está disponible (modo privado), se guarda en memoria durante la sesión.

@@ -38,7 +38,8 @@ try {
   const caja = await canvas.boundingBox();
   let n = 0;
   for (const paso of pasos) {
-    const [tipo, valor = ''] = paso.split(':');
+    const [tipo, ...resto] = paso.split(':');
+    const valor = resto.join(':');
     if (tipo === 'clic') {
       const [x, y] = valor.split(',').map(Number);
       await pagina.mouse.click(caja!.x + (x + 0.5) * (caja!.width / 320), caja!.y + (y + 0.5) * (caja!.height / 200));
