@@ -240,11 +240,9 @@ export class Mesa implements Escena {
     this.cola.push(...this.mano.sacarEventos());
     // Nicanor comenta de vez en cuando al empezar la mano.
     if (this.partida.numeroMano > 0 && this.rng() < 0.18) {
-      this.bocadillos[4] = crearBocadillo(
-        this.lineas.elegir('nicanor', LINEAS_NICANOR),
-        { x: 222, y: 24, lado: 'derecha' },
-        2600,
-      );
+      const l = this.lineas.elegirConIndice('nicanor', LINEAS_NICANOR);
+      this.bocadillos[4] = crearBocadillo(l.texto, { x: 222, y: 24, lado: 'derecha' }, 2600);
+      this.juego.audio.voz('nicanor', 'idle', l.texto, l.indice);
       this.camarero.forzar('quieto', 1800);
     }
   }
@@ -445,7 +443,7 @@ export class Mesa implements Escena {
         this.mostrarBanner(nos ? UI.finJuego.ganamos : UI.finJuego.perdemos, nos ? P.oros : D.copas_brillo, 2600);
         this.reaccionar(e.fin.ganador, 'contento', 1);
         this.reaccionar((1 - e.fin.ganador) as Equipo, 'cabreado', 0.7);
-        this.juego.audio.sfx(nos ? 'aplauso' : 'murmullo');
+        this.juego.audio.sfx(nos ? 'aplauso' : 'grillos');
         this.espera = 1400 * r;
         break;
       }
@@ -529,14 +527,17 @@ export class Mesa implements Escena {
 
   /** Dice una línea con bocadillo y voz. */
   decir(s: Seat, evento: EventoVoz, cantidad?: number, conSabor = true, _lance?: Lance): void {
-    let linea: string;
+    let elegida: { texto: string; indice: number; plantilla: string };
+    let sabor = conSabor;
     if (s === 0) {
-      linea = this.lineas.elegir('humano', LINEAS_HUMANO[evento] ?? [''], cantidad);
+      elegida = this.lineas.elegirConIndice('humano', LINEAS_HUMANO[evento] ?? [''], cantidad);
+      sabor = false;
     } else {
       const id = this.ids[s as 1 | 2 | 3];
       const opciones = conSabor ? LINEAS[id][evento] : (LINEAS_HUMANO[evento] ?? LINEAS[id][evento]);
-      linea = this.lineas.elegir(conSabor ? id : `${id}-neutro`, opciones, cantidad);
+      elegida = this.lineas.elegirConIndice(conSabor ? id : `${id}-neutro`, opciones, cantidad);
     }
+    let linea = elegida.texto;
     if (!linea) return;
     // «Envido» a secas con cantidad distinta de 2: que se oiga la cantidad.
     if (
@@ -548,7 +549,9 @@ export class Mesa implements Escena {
       linea = `${linea.replace(/[.!]$/, '')} ${cantidadEnTexto(cantidad)}.`;
     }
     const quien = s === 0 ? 'humano' : this.ids[s as 1 | 2 | 3];
-    const dur = this.juego.audio.voz(quien, evento, linea);
+    // La grabación sirve si es una línea con sabor y, si lleva cantidad, ésta es la grabada («dos»).
+    const grabable = sabor && (!elegida.plantilla.includes('{') || cantidad === 2);
+    const dur = this.juego.audio.voz(quien, evento, linea, grabable ? elegida.indice : undefined);
     const ms = Math.max(2500 * this.ritmo, dur + 400);
     const tinta = evento === 'ordago' || evento === 'quieroOrdago' ? D.copas_osc : undefined;
     this.bocadillos[s] = crearBocadillo(linea, LAYOUT.bocadillos[s], ms, { tinta });

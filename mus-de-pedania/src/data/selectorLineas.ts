@@ -10,13 +10,22 @@ export class SelectorLineas {
   constructor(private readonly rng: Rng) {}
 
   elegir(quien: string, opciones: readonly string[], cantidad?: number): string {
-    if (opciones.length === 0) return '';
+    return this.elegirConIndice(quien, opciones, cantidad).texto;
+  }
+
+  /** Como `elegir`, pero dice también qué variante salió (para buscar su grabación). */
+  elegirConIndice(
+    quien: string,
+    opciones: readonly string[],
+    cantidad?: number,
+  ): { texto: string; indice: number; plantilla: string } {
+    if (opciones.length === 0) return { texto: '', indice: -1, plantilla: '' };
     const ultimas = this.recientes.get(quien) ?? [];
     const validas = opciones.filter((o) => !ultimas.includes(o));
     const lista = validas.length > 0 ? validas : opciones;
     const elegida = lista[Math.floor(this.rng() * lista.length)];
     this.recientes.set(quien, [...ultimas, elegida].slice(-2));
-    return rellenar(elegida, cantidad);
+    return { texto: rellenar(elegida, cantidad), indice: opciones.indexOf(elegida), plantilla: elegida };
   }
 }
 

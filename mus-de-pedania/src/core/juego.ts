@@ -79,7 +79,9 @@ export interface Juego {
 export interface FachadaAudio {
   sfx(nombre: string, op?: { volumen?: number; tono?: number; retardo?: number }): void;
   /** Reproduce una línea de voz (grabada o balbuceo). Devuelve su duración en ms. */
-  voz(quien: string, evento: string, texto: string): number;
+  voz(quien: string, evento: string, texto: string, indice?: number): number;
+  /** Vuelve a leer los volúmenes de las opciones. */
+  aplicarVolumenes?(): void;
   musica(cancion: string | null): void;
   ambiente(activo: boolean): void;
 }

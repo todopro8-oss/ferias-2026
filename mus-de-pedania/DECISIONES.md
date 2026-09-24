@@ -139,3 +139,28 @@ Cada entrada: qué se decidió y por qué.
   claves nuevas. `musped.torneo` guarda el cuadro en curso y `musped.estadisticas` los totales. Cada
   valor va envuelto con su número de versión; si no coincide y no hay migración, se usa el valor por
   defecto. Si localStorage no está disponible (modo privado), se guarda en memoria durante la sesión.
+
+## Audio (H7)
+
+- **FM con nodos de Web Audio.** Cada nota usa una moduladora (oscilador → ganancia = índice ×
+  frecuencia) que modula la frecuencia de la portadora, con su envolvente ADSR. La realimentación del
+  OPL2 no se puede hacer con nodos: haría falta un bucle con retardo de al menos 128 muestras. Se
+  precalcula un periodo de la onda realimentada (y de las formas medio seno, seno absoluto y cuarto
+  de seno) y se pasa a `PeriodicWave` por DFT. Suena a AdLib sin necesitar un AudioWorklet.
+- **Música.** Las cuatro piezas son composición nueva: el popurrí (pasodoble en La menor con trío en La
+  mayor, jota en Re, rumba sobre la cadencia andaluza, unos 80 s en bucle), la victoria, la derrota y
+  la charanga. Sólo usan giros de estilo genéricos: oom-pah, alternancia tónica-dominante, rasgueo
+  3-3-2. Un test comprueba que cada compás de cada pista cuadra.
+- **SFX procedurales.** Las «muestras» se generan por código al arrancar (ruido filtrado, tonos,
+  envolventes): no hay archivos de audio que distribuir. La percusión del secuenciador (bombo, caja,
+  castañuelas, palmas, pandereta, platillo) sale del mismo generador.
+- **Balbuceo.** Se renderiza cada línea en un `OfflineAudioContext` y luego se reproduce. Así el filtro
+  Sound Blaster es literal: se renderiza a 11 025 Hz y se cuantiza a 8 bits. Sin filtro se renderiza a
+  22 050 Hz. Cada toma se normaliza a −3 dBFS, como pide la guía de grabación.
+- **Voces grabadas.** `assets/voices/<personaje>/<evento>_<n>.ogg` (n = variante, desde 1), listadas en
+  `assets/voices/manifest.json` por `npm run voices:manifest`, que genera también `VOICES.md`. Las
+  líneas con cantidad (`{n}`) se graban diciendo «dos» y sólo se usan cuando la cantidad es dos.
+- **Ambiente.** Murmullo en bucle a volumen bajo, con cafetera, vasos y tragaperras de vez en cuando. Se
+  atenúa mientras alguien habla.
+- **Sin clics ni saturación.** Envolventes con rampas, compresor en el master y `scripts/audio-check.ts`,
+  que renderiza todo en Chromium y mide pico y saltos entre muestras.

@@ -1,5 +1,6 @@
 import { cargarRecursos } from './core/assets';
-import { AUDIO_MUDO, type Juego } from './core/juego';
+import { type Juego } from './core/juego';
+import { MotorAudio } from './audio/motor';
 import { Bucle } from './core/loop';
 import { Entrada } from './core/input';
 import { Pantalla } from './core/pantalla';
@@ -41,8 +42,12 @@ const juego: Juego = {
   guardarOpciones: () => flujo.guardarOpciones(),
   tiempo: 0,
   turbo: 1,
-  audio: AUDIO_MUDO,
+  audio: null as unknown as MotorAudio,
 };
+const motorAudio = new MotorAudio(() => juego.opciones);
+juego.audio = motorAudio;
+// Los navegadores sólo dejan sonar el audio tras un gesto del usuario.
+entrada.alPrimerGesto(() => motorAudio.desbloquear());
 pantalla.configurar(juego.opciones.escalado, juego.opciones.correccion43);
 const flujo = new Flujo(juego);
 

@@ -90,6 +90,7 @@ export class Flujo {
   guardarOpciones(): void {
     escribir(CLAVES.opciones, VERSION_OPCIONES, this.juego.opciones);
     this.juego.pantalla.configurar(this.juego.opciones.escalado, this.juego.opciones.correccion43);
+    this.juego.audio.aplicarVolumenes?.();
   }
 
   private guardarEstadisticas(): void {
