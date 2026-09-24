@@ -1,23 +1,80 @@
-// Punto de entrada provisional (H0): pinta la pantalla lógica 320×200 escalada.
-const ANCHO = 320;
-const ALTO = 200;
+import { cargarRecursos } from './core/assets';
+import { AUDIO_MUDO, OPCIONES_POR_DEFECTO, type Juego } from './core/juego';
+import { Bucle } from './core/loop';
+import { Entrada } from './core/input';
+import { Pantalla } from './core/pantalla';
+import { GestorEscenas } from './core/sceneManager';
+import type { IdPersonaje } from './data/characters';
+import { Galeria } from './scenes/Galeria';
+import { Mesa } from './scenes/Table';
 
-const canvas = document.getElementById('pantalla') as HTMLCanvasElement;
-canvas.width = ANCHO;
-canvas.height = ALTO;
-const ctx = canvas.getContext('2d')!;
-ctx.imageSmoothingEnabled = false;
+const pantalla = new Pantalla(document.getElementById('pantalla') as HTMLCanvasElement);
+const entrada = new Entrada(pantalla);
+const escenas = new GestorEscenas();
+const params = new URLSearchParams(location.search);
 
-function ajustar(): void {
-  const escala = Math.max(1, Math.floor(Math.min(window.innerWidth / ANCHO, window.innerHeight / ALTO)));
-  canvas.style.width = `${ANCHO * escala}px`;
-  canvas.style.height = `${ALTO * escala}px`;
+const bucle = new Bucle({
+  actualizar: (dt) => {
+    juego.tiempo += dt;
+    for (const e of entrada.sacar()) {
+      if (e.tipo === 'tecla' && e.tecla.toLowerCase() === 'f' && !e.repetida) void pantalla.alternarPantallaCompleta();
+      escenas.entrada(e);
+    }
+    escenas.actualizar(dt);
+  },
+  dibujar: () => {
+    pantalla.ctx.fillStyle = '#000';
+    pantalla.ctx.fillRect(0, 0, 320, 200);
+    escenas.dibujar(pantalla.ctx);
+  },
+});
+
+const juego: Juego = {
+  pantalla,
+  entrada,
+  escenas,
+  bucle,
+  opciones: structuredClone(OPCIONES_POR_DEFECTO),
+  guardarOpciones: () => {},
+  tiempo: 0,
+  turbo: 1,
+  audio: AUDIO_MUDO,
+};
+
+function empezarMesa(): void {
+  const rivales = (params.get('rivales') ?? 'canijo,rufi').split(',') as [IdPersonaje, IdPersonaje];
+  const mesa = new Mesa(juego, {
+    companero: (params.get('companero') ?? 'anselmo') as IdPersonaje,
+    rivales,
+    semilla: params.has('semilla') ? Number(params.get('semilla')) : undefined,
+    autoJugar: params.has('auto'),
+    alTerminar: (r) => {
+      depuracion.partidasTerminadas++;
+      depuracion.ultimoResultado = r;
+      empezarMesa();
+    },
+  });
+  escenas.cambiar(mesa);
 }
-window.addEventListener('resize', ajustar);
-ajustar();
 
-ctx.fillStyle = '#1F2E27';
-ctx.fillRect(0, 0, ANCHO, ALTO);
-ctx.fillStyle = '#EAEAE0';
-ctx.font = '8px monospace';
-ctx.fillText('MUS DE PEDANIA - H0', 100, 100);
+async function arrancar(): Promise<void> {
+  await cargarRecursos();
+  if (params.has('galeria')) {
+    const g = new Galeria(params.get('galeria') ?? 'cartas');
+    g.pagina = Number(params.get('pagina') ?? 0);
+    escenas.cambiar(g);
+  } else {
+    empezarMesa();
+  }
+  if (params.has('turbo')) {
+    juego.turbo = Number(params.get('turbo'));
+    bucle.aceleracion = juego.turbo;
+  }
+  bucle.empezar();
+}
+
+// Gancho para pruebas automáticas (Playwright).
+const depuracion = { juego, escenas, partidasTerminadas: 0, ultimoResultado: null as unknown };
+(window as unknown as { __mus: unknown }).__mus = depuracion;
+
+void arrancar();

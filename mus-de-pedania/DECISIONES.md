@@ -58,3 +58,23 @@ Cada entrada: qué se decidió y por qué.
   si (2p − 1)·V > −A, o sea p > ½ − A/(2V). Encima se suma un margen que baja con la agresividad.
 - **Compañero del humano.** Si le toca contestar antes que el humano, sólo quiere con p claramente alta.
   Si no, dice «no quiero» para que conteste el humano. Así nunca decide por él.
+
+## Mesa y arte (H3)
+
+- **Coordenadas.** Se respetan las de la sección 10 salvo: la puerta llega hasta la mesa (26×74) para que
+  los cameos entren de cuerpo entero; los bustos laterales bajan 4 px (y = 54) para que el corte inferior
+  quede tapado por los paneles; los montones de piedras van a (84,124) y (214,124) para no chocar con
+  los bustos, y la ficha de mano/postre del humano va sobre la mesa (126,127).
+- **Fuente bitmap.** Celda de 5×11: las tildes de las mayúsculas usan dos filas por encima de la altura
+  de las mayúsculas y los descendentes, dos por debajo. Así un botón de 11 px de alto encaja una línea
+  exacta. La variante de título es la negrita (avance 7) y el logo usa escala ×2.
+- **Recuento.** `HandSummary` es un componente que la mesa dibuja encima, no una escena aparte: las
+  piedras que vuelan y el marcador pertenecen a la mesa, y así no hace falta sincronizar dos escenas.
+- **Parloteo.** La probabilidad de la sección 8.1 decide si el personaje dice su línea con gracia o la
+  forma neutra («Envido dos.»). Las acciones siempre se anuncian: si no, el humano no sabría qué ha
+  pasado. Las declaraciones de pares y juego son siempre cortas.
+- **Bocadillos.** Las líneas de mesa caben en 2×22 caracteres (lo comprueba un test). Presentación,
+  victoria y derrota se ven en pantallas con más sitio (4×30).
+- **Pulgares.** Dos pulgares sujetan tus cartas, como en la vista en primera persona del original.
+- **Orden de tus cartas.** Se muestran ordenadas por rango efectivo (de rey a as), como las ordenaría
+  cualquiera en la mano. Las teclas 1-4 se refieren a ese orden.
