@@ -6,6 +6,8 @@ import { crearJugadorPorDefecto } from '../src/ai/fabrica';
 import { decidirMus } from '../src/ai/musDecision';
 import { PERSONALIDAD_NEUTRA, type PerfilIA } from '../src/ai/personalities';
 import { vistaPara } from '../src/ai/view';
+import { EstimadorMonteCarlo } from '../src/ai/montecarlo';
+import { ManoMus } from '../src/mus/handState';
 import { mulberry32 } from '../src/core/rng';
 import { rango } from '../src/mus/cards';
 import { crearConfig, type Seat } from '../src/mus/config';
@@ -20,16 +22,57 @@ const perfil = (extra: Partial<PerfilIA> = {}): PerfilIA => ({
 });
 
 describe('IA heurística', () => {
-  it('2.000 manos IA contra IA sin errores y con marcador coherente', () => {
+  it('2.000 manos IA Fácil contra IA Fácil sin errores y con marcador coherente', () => {
     const rng = mulberry32(3);
     const st = simular({
       manos: 2000,
       config: crearConfig(),
       rng,
-      crearJugadores: (p) => [0, 1, 2, 3].map((s) => crearJugadorPorDefecto(s as Seat, mulberry32(p * 10 + s))),
+      crearJugadores: (p) =>
+        [0, 1, 2, 3].map((s) => crearJugadorPorDefecto(s as Seat, mulberry32(p * 10 + s), 'facil')),
     });
     expect(st.manos).toBe(2000);
     expect(st.juegos).toBeGreaterThan(50);
+  });
+
+  it('500 manos con Monte Carlo (Normal contra Difícil) sin errores', () => {
+    const rng = mulberry32(4);
+    const st = simular({
+      manos: 500,
+      config: crearConfig(),
+      rng,
+      crearJugadores: (p) =>
+        [0, 1, 2, 3].map((s) =>
+          crearJugadorPorDefecto(s as Seat, mulberry32(p * 10 + s), s % 2 ? 'dificil' : 'normal'),
+        ),
+    });
+    expect(st.manos).toBe(500);
+  });
+
+  it('Monte Carlo: menos de 30 ms por decisión incluso con 800 muestras', () => {
+    const est = new EstimadorMonteCarlo(800, mulberry32(9));
+    let max = 0;
+    for (let i = 0; i < 30; i++) {
+      const m = new ManoMus({ config: crearConfig(), postre: 3, marcador: [0, 0], rng: mulberry32(100 + i) });
+      m.actuar(0, NO_HAY_MUS);
+      const t0 = performance.now();
+      est.estimar(vistaPara(m, 1));
+      max = Math.max(max, performance.now() - t0);
+    }
+    expect(max).toBeLessThan(30);
+  });
+
+  it('Monte Carlo respeta las declaraciones: si nadie más tiene pares, gano pares seguro', () => {
+    const m = manoFija(['Ro Rc 5o 4e', '7c 6c 5c 4c', '7e 6e 5e Ae', 'Co Sc 6b 2b']);
+    m.actuar(0, NO_HAY_MUS);
+    for (let i = 0; i < 8; i++) {
+      const d = m.pendiente();
+      if (!d || d.tipo !== 'apuesta' || d.lance === 'pares' || m.declaraciones.pares) break;
+      m.actuar(d.jugador, { tipo: 'paso' });
+    }
+    expect(m.declaraciones.pares).not.toBeNull();
+    const r = new EstimadorMonteCarlo(200, mulberry32(1)).estimar(vistaPara(m, 0));
+    expect(r.p.pares).toBe(1);
   });
 
   it('con duples o con 31 y otra baza siempre corta el mus', () => {

@@ -36,8 +36,10 @@ export function jugadaMaxima(cartas: readonly Carta[], lance: Lance, reyes: Reye
 export interface OpcionesApuestaIA {
   /** El compañero de este jugador es el humano: no le pisa las apuestas. */
   companeroHumano?: boolean;
-  /** Cuánto farolea el que apuesta (0..1, sólo en «Difícil»: se aprende del humano). */
-  farolDelApostador?: number;
+  /** Cuánto farolea el humano (0..1). Sólo «Difícil» lo aprende; se aplica si el que apuesta es él. */
+  farolHumano?: number;
+  /** La `p` que llega ya está condicionada a las apuestas del lance (Monte Carlo). */
+  pCondicionada?: boolean;
 }
 
 function envite(cantidad: number): Accion {
@@ -71,12 +73,12 @@ export function decidirApuesta(
     if (mira && faltanEllos <= 3 && faltanNos >= 15 && rng() < pers.ord * pers.far * 2) {
       return { accion: { tipo: 'ordago' }, motivo: 'órdago desesperado' };
     }
-    const umbralEnvido = 0.68 - 0.2 * pers.agr;
+    const umbralEnvido = 0.74 - 0.34 * pers.agr;
     if (p > umbralEnvido) {
       const cantidad = p > 0.8 ? 3 + Math.floor(rng() * (0.5 + 2.5 * pers.agr)) : 2;
       return { accion: envite(Math.min(cantidad, 5)), motivo: `envida con p=${p.toFixed(2)}` };
     }
-    if (p < 0.25 && rng() < pers.far * dif.factorFarol) return { accion: envite(2), motivo: 'farol' };
+    if (p < 0.35 && rng() < pers.far * dif.factorFarol) return { accion: envite(2), motivo: 'farol' };
     return { accion: { tipo: 'paso' }, motivo: `pasa con p=${p.toFixed(2)}` };
   }
 
@@ -99,8 +101,12 @@ export function decidirApuesta(
       equipoDe(h.jugador) !== eq &&
       (h.voz === 'envido' || h.voz === 'envidoMas' || h.voz === 'ordago'),
   ).length;
-  const respeto = (0.7 * apuestasRivales + (d.ordago ? 0.5 : 0)) * (1 - (op.farolDelApostador ?? 0));
-  const pAjustada = Math.min(0.99, Math.pow(p, 1 + respeto));
+  const farolApostador = ap?.apostador === 0 ? (op.farolHumano ?? 0) : 0;
+  // Con Monte Carlo la p ya viene ponderada por lo apostado: sólo queda un pequeño respeto.
+  const porApuesta = op.pCondicionada ? 0.15 : 0.7;
+  const respeto =
+    (porApuesta * apuestasRivales + (d.ordago ? (op.pCondicionada ? 0.15 : 0.5) : 0)) * (1 - farolApostador);
+  const pAjustada = Math.min(0.99, Math.pow(p, 1 + respeto) + farolApostador * 0.15);
 
   if (d.ordago) {
     if (dif.clasico96 && !jugadaMaxima(vista.cartas, d.lance, vista.config.reyes)) {

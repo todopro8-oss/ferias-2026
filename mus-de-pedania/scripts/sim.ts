@@ -1,10 +1,12 @@
 // Simulador de manos IA contra IA.
-//   npm run sim -- --hands 10000 --seed 1 [--ia aleatoria|heuristica] [--reyes 4] [--puntos 30] [--juegos 3]
+//   npm run sim -- --hands 10000 --seed 1 [--ia aleatoria|heuristica] [--dificultad facil|normal|dificil]
+//                  [--reyes 4] [--puntos 30] [--juegos 3] [--corrido]
 
 import { JugadorAleatorio } from '../src/ai/aleatoria';
 import { simular } from '../src/ai/arena';
 import { crearJugadorPorDefecto } from '../src/ai/fabrica';
 import type { JugadorIA } from '../src/ai/jugador';
+import type { Dificultad } from '../src/ai/personalities';
 import { mulberry32 } from '../src/core/rng';
 import { crearConfig, type Seat } from '../src/mus/config';
 import { argumentos } from './args';
@@ -13,6 +15,7 @@ const args = argumentos(process.argv.slice(2));
 const manos = Number(args.hands ?? args.manos ?? 10000);
 const semilla = Number(args.seed ?? args.semilla ?? 1);
 const tipoIA = String(args.ia ?? 'heuristica');
+const dificultad = String(args.dificultad ?? 'normal') as Dificultad;
 const config = crearConfig({
   reyes: Number(args.reyes ?? 8) === 4 ? 4 : 8,
   puntosJuego: Number(args.puntos ?? 40) === 30 ? 30 : 40,
@@ -30,13 +33,13 @@ const st = simular({
     [0, 1, 2, 3].map((s): JugadorIA =>
       tipoIA === 'aleatoria'
         ? new JugadorAleatorio(rng)
-        : crearJugadorPorDefecto(s as Seat, mulberry32(semilla * 7919 + partida * 4 + s)),
+        : crearJugadorPorDefecto(s as Seat, mulberry32(semilla * 7919 + partida * 4 + s), dificultad),
     ),
 });
 const ms = performance.now() - t0;
 
 const pct = (a: number, b: number) => (b === 0 ? '—' : `${((100 * a) / b).toFixed(1)} %`);
-console.log(`Mus de Pedanía · simulador (IA ${tipoIA}, semilla ${semilla})`);
+console.log(`Mus de Pedanía · simulador (IA ${tipoIA}, dificultad ${dificultad}, semilla ${semilla})`);
 console.log(`Reglas: ${config.reyes} reyes, a ${config.puntosJuego}, ${config.juegosPartida} juego(s)`);
 console.log('');
 console.log(`Manos:        ${st.manos}`);

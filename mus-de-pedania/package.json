@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "sim": "tsx scripts/sim.ts",
     "partida": "tsx scripts/partida.ts",
-    "voices:manifest": "tsx scripts/voices-manifest.ts"
+    "voices:manifest": "tsx scripts/voices-manifest.ts",
+    "personalidades": "tsx scripts/personalidades.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

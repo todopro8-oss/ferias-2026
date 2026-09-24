@@ -11,6 +11,8 @@ export interface Estimacion {
   p: Record<Lance, number>;
   /** Piedras esperadas de la mano para mi pareja (aprox.). */
   piedras: number;
+  /** true si `p` ya tiene en cuenta lo que han apostado los demás en el lance. */
+  condicionada?: boolean;
 }
 
 export interface Estimador {

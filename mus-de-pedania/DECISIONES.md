@@ -78,3 +78,24 @@ Cada entrada: qué se decidió y por qué.
 - **Pulgares.** Dos pulgares sujetan tus cartas, como en la vista en primera persona del original.
 - **Orden de tus cartas.** Se muestran ordenadas por rango efectivo (de rey a as), como las ordenaría
   cualquiera en la mano. Las teclas 1-4 se refieren a ese orden.
+
+## IA completa (H4)
+
+- **Muestreo con restricciones.** El Monte Carlo reparte las cartas desconocidas jugador a jugador
+  (4 cada uno) y rechaza las manos que contradicen lo que se sabe: declaraciones de pares y juego
+  (restricciones duras) y señas vistas (blandas). Tras 50 intentos fallidos se relajan las señas y,
+  si hiciera falta, las declaraciones. Muestrear jugador a jugador no da exactamente la distribución
+  conjunta condicionada, pero se acerca mucho y es mucho más rápido que rechazar repartos enteros.
+- **Verosimilitud de las apuestas.** Cada reparto simulado se pondera por lo creíble que hace el
+  comportamiento del lance en curso. Quien envida pesa `0,3 + 0,7·σ((pct − 0,5)/0,15)`, porque suele
+  llevar mano, confía en su compañero o farolea. Quien pasa pesa `1 − 0,35·σ(…)`. Con esa `p` ya
+  condicionada, el «respeto» extra de `bet.ts` se reduce de 0,7 a 0,15 por apuesta.
+- **Sin Web Worker.** 800 muestras cuestan unos 2 ms por decisión en Node (máximo medido de unos 4 ms),
+  muy por debajo de los 30 ms del presupuesto. Hay un test que lo vigila. Si en algún navegador lento
+  no llegara, `EstimadorMonteCarlo` es puro y se puede mover a un worker sin tocar nada más.
+- **Umbrales por personalidad.** Envidar si `p > 0,74 − 0,34·agr`. Farol si `p < 0,35` y
+  `rand < far·factorFarol`. Así se nota la diferencia entre la Rufi (53 % de aperturas envidadas, 9 % de
+  faroles) y don Anselmo (33 % y 2 %). `npm run personalidades` saca la tabla completa.
+- **«Difícil» aprende del humano.** Tras cada destape se mira si los envites del humano eran farol
+  (percentil de su mano en ese lance < 0,4). La tasa suavizada `(faroles + 1)/(envites + 5)` hace que
+  los rivales le quieran más a menudo cuando es él quien apuesta.

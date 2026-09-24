@@ -5,6 +5,7 @@
 import { crearJugador } from '../ai/fabrica';
 import type { JugadorMus } from '../ai/jugadorMus';
 import { vistaPara, type SenaVista } from '../ai/view';
+import { percentilEnLance, tablas } from '../ai/handValue';
 import { hojaPersonaje } from '../core/assets';
 import { ALTO_LINEA, envolver, texto } from '../core/bitmapFont';
 import type { EventoEntrada } from '../core/input';
@@ -125,6 +126,8 @@ export class Mesa implements Escena {
   private temblor = 0;
   finJuegoPendiente = false;
   senasVistas: Record<Seat, SenaVista[]> = { 0: [], 1: [], 2: [], 3: [] };
+  /** Lo que la IA «Difícil» aprende del humano: cuántas veces envida y cuántas era farol. */
+  private modeloHumano = { envites: 0, faroles: 0 };
   readonly estadisticas: EstadisticasPartida = {
     manos: 0,
     ordagosLanzados: 0,
@@ -377,6 +380,7 @@ export class Mesa implements Escena {
         break;
       case 'destape':
         this.destapar(e.manos);
+        this.aprenderFaroles(e.manos[0]);
         this.espera = 1100 * r;
         break;
       case 'resolucion_ordago': {
@@ -645,6 +649,21 @@ export class Mesa implements Escena {
         },
       });
     }
+  }
+
+  /** Tras el destape, mira si los envites del humano eran farol (sólo lo usa «Difícil»). */
+  private aprenderFaroles(mia: Carta[]): void {
+    if (!this.mano) return;
+    const t = tablas(this.config.reyes);
+    for (const h of this.mano.historial) {
+      if (h.jugador !== 0 || !h.lance) continue;
+      if (h.voz !== 'envido' && h.voz !== 'envidoMas' && h.voz !== 'ordago') continue;
+      this.modeloHumano.envites++;
+      if (percentilEnLance(t, h.lance, mia) < 0.4) this.modeloHumano.faroles++;
+    }
+    if (this.juego.opciones.dificultad !== 'dificil') return;
+    const farol = (this.modeloHumano.faroles + 1) / (this.modeloHumano.envites + 5);
+    for (const s of [1, 3] as const) this.ias[s].opciones.farolHumano = farol;
   }
 
   private destapar(manos: Carta[][]): void {

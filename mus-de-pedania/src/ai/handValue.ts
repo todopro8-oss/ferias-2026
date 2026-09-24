@@ -3,7 +3,16 @@
 // y la base del descarte y de la decisión de mus en todas las dificultades.
 
 import type { Carta, Reyes } from '../mus/cards';
-import { claveChica, claveGrande, claveJuego, clavePares, clavePunto, pares, sumaJuego } from '../mus/evaluate';
+import {
+  claveChica,
+  claveGrande,
+  claveJuego,
+  clavePares,
+  clavePunto,
+  pares,
+  sumaJuego,
+  type Lance,
+} from '../mus/evaluate';
 
 const TOTAL_COMBINACIONES = 91390;
 
@@ -174,4 +183,21 @@ export function percentilMano(t: TablasPercentil, valor: number): number {
     else hi = mid;
   }
   return lo / v.length;
+}
+
+/** Percentil de una mano en un lance (en pares y juego, entre las manos que tienen jugada). */
+export function percentilEnLance(t: TablasPercentil, lance: Lance, m: readonly Carta[]): number {
+  const r = t.reyes;
+  switch (lance) {
+    case 'grande':
+      return t.grande[claveGrande(m, r)];
+    case 'chica':
+      return t.chica[claveChica(m, r)];
+    case 'pares':
+      return t.paresCond[clavePares(m, r)] ?? 0;
+    case 'juego':
+      return t.juegoCond[claveJuego(m, r)] ?? 0;
+    case 'punto':
+      return t.punto[clavePunto(m, r)];
+  }
 }

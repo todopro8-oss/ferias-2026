@@ -44,7 +44,10 @@ export class JugadorMus implements JugadorIA {
         const est = this.estimador.estimar(vista);
         const p = est.p[d.lance];
         this.ultimaP = p;
-        const r = decidirApuesta(vista, d, p, this.perfil, this.rng, this.opciones);
+        const r = decidirApuesta(vista, d, p, this.perfil, this.rng, {
+          ...this.opciones,
+          pCondicionada: est.condicionada,
+        });
         this.ultimoMotivo = r.motivo;
         return r.accion;
       }
