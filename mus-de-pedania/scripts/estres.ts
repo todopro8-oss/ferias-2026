@@ -11,7 +11,7 @@ const args = argumentos(process.argv.slice(2));
 const objetivo = Number(args.manos ?? 200);
 const turbo = Number(args.turbo ?? 10);
 
-const servidor = await createServer({ server: { port: 5304 }, logLevel: 'error' });
+const servidor = await createServer({ server: { port: 5304, hmr: false, watch: null }, logLevel: 'error' });
 await servidor.listen();
 const puerto = servidor.config.server.port;
 const navegador = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -19,16 +19,16 @@ const pagina = await navegador.newPage({ viewport: { width: 960, height: 600 } }
 const errores: string[] = [];
 pagina.on('pageerror', (e) => errores.push(String(e.stack ?? e)));
 pagina.on('console', (m) => m.type() === 'error' && errores.push(m.text()));
-await pagina.goto(`http://localhost:${puerto}/?mesa&auto&turbo=${turbo}&senas=discreto&chivato`);
-await pagina.waitForTimeout(1000);
-// Medidor de fotogramas: tiempos entre requestAnimationFrame.
-// (Como cadena: tsx añade ayudantes que no existen dentro de la página.)
-await pagina.evaluate(`(() => {
+// Medidor de fotogramas instalado en cada carga (como cadena: tsx añade ayudantes que no
+// existen dentro de la página). Así sobrevive a una recarga.
+await pagina.addInitScript(`(() => {
   window.__frames = [];
   let prev = performance.now();
   const f = (t) => { window.__frames.push(t - prev); prev = t; requestAnimationFrame(f); };
   requestAnimationFrame(f);
 })()`);
+await pagina.goto(`http://localhost:${puerto}/?mesa&auto&turbo=${turbo}&senas=discreto&chivato`);
+await pagina.waitForTimeout(1000);
 
 const t0 = Date.now();
 let ultimo = -1;
@@ -46,7 +46,7 @@ for (;;) {
   if (errores.length || Date.now() - t0 > 1_500_000) break;
   await pagina.waitForTimeout(1000);
 }
-const frames: number[] = await pagina.evaluate(() => (window as any).__frames);
+const frames: number[] = (await pagina.evaluate('window.__frames')) ?? [];
 const utiles = frames.slice(30);
 const media = utiles.reduce((a, b) => a + b, 0) / utiles.length;
 const lentos = utiles.filter((d) => d > 1000 / 45).length;
